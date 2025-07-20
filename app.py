@@ -1,6 +1,11 @@
 import streamlit as st
+from datetime import datetime
 
 st.title("GoldBod Ghana Pound Price Calculator")
+
+# Display current date and time
+now = datetime.now()
+st.write(f"**Date & Time:** {now.strftime('%Y-%m-%d %H:%M:%S')}")
 
 # User Inputs (empty fields for user input)
 lme_price_usd = st.number_input("LME Price per Ounce (USD):", value=None, step=1)
