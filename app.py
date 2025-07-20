@@ -2,10 +2,10 @@ import streamlit as st
 
 st.title("GoldBod Ghana Pound Price Calculator")
 
-# User Inputs
-lme_price_usd = st.number_input("LME Price per Ounce (USD):", value=3348.00, step=0.01)
+# User Inputs (with your preferred defaults)
+lme_price_usd = st.number_input("LME Price per Ounce (USD):", value=3348, step=1)
 exchange_rate = st.number_input("Exchange Rate (GHS/USD):", value=10.42, step=0.01)
-adjustment_factor = st.number_input("Adjustment Factor (%):", value=95.92, step=0.01)
+adjustment_factor = st.number_input("Adjustment Factor (%):", value=95.86, step=0.01)
 
 # Constants
 grams_in_ounce = 31.1035
