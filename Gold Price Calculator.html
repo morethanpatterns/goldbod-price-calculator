@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gold Price Calculator — No Screenshot</title>
+<style>
+  :root{ --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --muted:#4b5563; --fg:#111827; --gold:#C59B0B; }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#111827}
+  .wrap{max-width:700px;margin:0 auto;padding:18px}
+  h1{font-size:clamp(20px,4vw,32px);margin:0 0 12px;text-align:center;color:var(--gold);font-weight:800;letter-spacing:1px}
+  .stamp{font-size:13px;color:#374151;text-align:center;margin:0 0 14px}
+  .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  label{display:block;margin-top:12px;color:#4b5563;font-size:12px}
+  .field{position:relative}
+  .field input{width:100%;padding:12px;border-radius:10px;border:1px solid #d1d5db;background:#fff;color:#111827;font-size:16px;text-align:right;padding-right:60px}
+  .field input[readonly]{background:#f9fafb}
+  .field input:focus{outline:none;border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.25)}
+  .suffix{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:#6b7280;font-size:12px;pointer-events:none}
+  .row{display:grid;grid-template-columns:1fr;gap:10px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn{appearance:none;border:1px solid #d1d5db;background:linear-gradient(135deg,#facc15,#f59e0b);color:#000;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gold Price Calculator</h1>
+    <div class="stamp">📅 <span id="timestamp">—</span></div>
+    <div id="priceCard" class="card">
+      <div class="row">
+        <div>
+          <label>LME Price per Ounce (USD)</label>
+          <div class="field"><input id="lme" type="number" step="0.01" inputmode="decimal" value="0"><span class="suffix">USD</span></div>
+        </div>
+        <div>
+          <label>Exchange Rate (GHS/USD)</label>
+          <div class="field"><input id="rate" type="number" step="0.0001" inputmode="decimal" value="0"><span class="suffix">GHS/USD</span></div>
+        </div>
+        <div>
+          <label>Price per pound</label>
+          <div class="field"><input id="poundPrice" type="text" readonly value="0"><span class="suffix">GHS</span></div>
+        </div>
+        <div>
+          <label>Bonus</label>
+          <div class="field"><input id="bonus" type="text" readonly value="832"><span class="suffix">GHS</span></div>
+        </div>
+        <div>
+          <label style="font-weight:900;letter-spacing:.5px">TOTAL</label>
+          <div class="field"><input id="finalTotal" type="text" readonly value="0" style="font-weight:900;font-size:22px;color:#7c2d12"><span class="suffix" style="font-weight:900;color:#7c2d12">GHS</span></div>
+        </div>
+      </div>
+      <div class="btns">
+        <button class="btn" id="reset">Reset</button>
+        <button class="btn" id="share">Share / Copy Link</button>
+        <button class="btn" id="copyText">Copy Text</button>
+        <button class="btn" id="printPdf">Print / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Share fallback modal -->
+  <div class="modal" id="modal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px">
+    <div class="box" style="background:#fff;border-radius:12px;max-width:560px;width:100%;padding:16px;border:1px solid #e5e7eb;box-shadow:0 10px 28px rgba(0,0,0,.2)">
+      <h3 style="margin:0 0 8px;color:#111827">Copy this link</h3>
+      <textarea id="linkBox" readonly style="width:100%;height:90px;border:1px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px"></textarea>
+      <div class="actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button id="copyBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer">Copy</button>
+        <button id="closeBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const ADJ=0.95865, GRAMS_PER_OZ=31.1035, GRAMS_PER_GHP=7.75;
+  function round2(x){return Math.round(x*100)/100;} function round0(x){return Math.round(x);}
+
+  function pad2(n){return n<10?'0'+n:''+n;} function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+  function stampString(d){const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];const months=['January','February','March','April','May','June','July','August','September','October','November','December'];const h=d.getHours(),m=pad2(d.getMinutes());const ampm=h===0?'12':(h>12?(h-12):h);const suffix=h>=12?'pm':'am';return `${days[d.getDay()]}, ${ordinal(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()} @ ${ampm}:${m}${suffix}.`;}
+  function updateClock(){ $('timestamp').textContent = stampString(new Date()); }
+
+  function fmtMoney(x){return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');}
+
+  function calc(){
+    const lme=parseFloat($('lme').value), rate=parseFloat($('rate').value), bonus=parseFloat($('bonus').value);
+    const ok=isFinite(lme)&&isFinite(rate)&&lme!==0&&rate!==0;
+    if(!ok){ $('poundPrice').value='0'; $('finalTotal').value='0'; return; }
+    const ghs=round2(lme*rate), adjG=round2(ghs*ADJ), price=round0(adjG*(GRAMS_PER_GHP/GRAMS_PER_OZ)), total=round0(price+bonus);
+    $('poundPrice').value=fmtMoney(price); $('finalTotal').value=fmtMoney(total);
+  }
+
+  ['lme','rate'].forEach(id=>{const el=$(id); el.addEventListener('focus',()=>{if(el.value==='0')el.value='';}); el.addEventListener('blur',()=>{if(el.value==='')el.value='0';calc();}); el.addEventListener('input',calc);});
+  $('reset').addEventListener('click',()=>{$('lme').value='0';$('rate').value='0';calc();});
+
+  function buildLink(){const p=new URLSearchParams({lme:$('lme').value,rate:$('rate').value});return location.origin+location.pathname+'?'+p.toString();}
+  $('share').addEventListener('click',async()=>{
+    const url=buildLink();
+    if(navigator.share){try{await navigator.share({title:'Gold Price Calculator',url});return;}catch(e){}}
+    if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(url);alert('Link copied.');return;}catch(e){}}
+    const modal=$('modal');const box=$('linkBox');box.value=url;modal.style.display='flex';box.focus();box.select();
+  });
+  $('copyBtn').addEventListener('click',()=>{const box=$('linkBox');box.select();try{document.execCommand('copy');alert('Link copied.');}catch(e){}});
+  $('closeBtn').addEventListener('click',()=>{$('modal').style.display='none';});
+
+  $('copyText').addEventListener('click',async()=>{
+    const now=stampString(new Date()); const lme=parseFloat($('lme').value)||0; const rate=parseFloat($('rate').value)||0; const price=$('poundPrice').value||'0'; const bonus=$('bonus').value||'0'; const total=$('finalTotal').value||'0';
+    const text=`Gold Price 
+${now}
+
+LME (per ounce)- $${fmtMoney(round2(lme))}
+
+Interbank Rate ${rate}
+
+Price per pound- GHS${price}
+
+Special Bonus  per pound- GHS${bonus}
+
+*Total price per pound- GHS${total}`;
+    try{await navigator.clipboard.writeText(text);alert('Text copied.');}
+    catch(e){const tmp=document.createElement('textarea');tmp.value=text;document.body.appendChild(tmp);tmp.select();try{document.execCommand('copy');alert('Text copied.');}catch(e2){alert('Copy failed.');}document.body.removeChild(tmp);}
+  });
+
+  $('printPdf').addEventListener('click',()=>window.print());
+
+  updateClock(); setInterval(updateClock,1000);
+  (function(){const q=new URLSearchParams(location.search); if(q.has('lme'))$('lme').value=q.get('lme'); if(q.has('rate'))$('rate').value=q.get('rate');})();
+  calc();
+</script>
+</body>
+</html>

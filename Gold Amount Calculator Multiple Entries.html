@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gold Amount Calculator — Horizontal</title>
+<style>
+  :root{
+    --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --muted:#4b5563; --fg:#111827; --gold:#C59B0B;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--fg)}
+  .wrap{max-width:1180px;margin:0 auto;padding:18px}
+  h1{font-size:clamp(20px,4vw,32px);margin:0 0 6px;text-align:center;color:var(--gold);font-weight:800;letter-spacing:1px}
+  .stamp{font-size:13px;color:#374151;text-align:center;margin:0 0 12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
+  .controls{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;align-items:center}
+  .btn{appearance:none;border:1px solid #d1d5db;background:linear-gradient(135deg,#facc15,#f59e0b);color:#000;border-radius:10px;padding:9px 12px;font-weight:700;cursor:pointer}
+  .btn.warn{background:#f3f4f6;color:#111;border:1px solid #d1d5db}
+  select{background:#ffffff;color:#111827;border:1px solid #d1d5db;border-radius:10px;padding:9px 12px}
+  table{width:100%;border-collapse:collapse;margin-top:8px}
+  th,td{border-bottom:1px solid var(--line);padding:8px 6px;text-align:right}
+  th{font-size:12px;color:#374151;text-transform:uppercase;letter-spacing:.04em;position:sticky;top:0;background:var(--card)}
+  td:first-child, th:first-child{position:sticky;left:0;background:var(--card);text-align:center}
+  td:nth-child(2), th:nth-child(2){text-align:left}
+  input{width:100%;padding:8px;border-radius:10px;border:1px solid #d1d5db;background:#ffffff;color:#111827;font-size:14px;text-align:right}
+  input[readonly]{background:#f9fafb}
+  input:focus{outline:none;border-color:#f59e0b;box-shadow:0 0 0 3px rgba(245,158,11,.25)}
+  .sum{font-weight:800}
+  .bottom-actions{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end;margin-top:12px}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Gold Amount Calculator</h1>
+    <div class="stamp">📅 <span id="timestamp">—</span></div>
+    <div id="tableCard" class="card">
+      <div class="controls">
+        <button id="clearAll" class="btn warn">Clear All</button>
+        <span>Export as</span>
+        <select id="delim">
+          <option value=",">CSV (comma)</option>
+          <option value=";">CSV (semicolon)</option>
+          <option value="\\t">TSV (tab)</option>
+        </select>
+        <button id="exportBtn" class="btn">Download</button>
+        <button id="quickBtn" class="btn">Quick Export</button>
+        <label class="btn" for="importCsv" style="cursor:pointer">Import</label>
+        <input id="importCsv" type="file" accept=".csv,.tsv,text/csv,text/tab-separated-values,text/plain" style="display:none">
+      </div>
+      <table id="tbl">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Notes</th>
+            <th>Top (g)</th>
+            <th>Down (g)</th>
+            <th>Price (GHS/Lb)</th>
+            <th>Pounds</th>
+            <th>Density</th>
+            <th>Karat</th>
+            <th>Amount (GHS)</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4" style="text-align:right">Total Top (g)</td>
+            <td id="totalTop" class="sum" style="text-align:right">0.00</td>
+            <td colspan="3" style="text-align:right">Total Amount</td>
+            <td id="grandTotal" class="sum">0</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <!-- Bottom actions (no screenshot) -->
+      <div class="bottom-actions">
+        <button id="addRow" class="btn">+ Add Row</button>
+        <button id="dupLast" class="btn">Duplicate Last</button>
+        <button id="shareBtn" class="btn">Share / Copy Link</button>
+        <button id="copyText" class="btn">Copy Text</button>
+        <button id="printPdf" class="btn">Print / PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal for manual link copy -->
+  <div class="modal" id="modal" style="position:fixed;inset:0;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px">
+    <div class="box" style="background:#fff;border-radius:12px;max-width:560px;width:100%;padding:16px;border:1px solid #e5e7eb;box-shadow:0 10px 28px rgba(0,0,0,.2)">
+      <h3 style="margin:0 0 8px;color:#111827">Copy this link</h3>
+      <textarea id="linkBox" readonly style="width:100%;height:90px;border:1px solid #d1d5db;border-radius:8px;padding:10px;font-size:14px"></textarea>
+      <div class="actions" style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px">
+        <button id="copyBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer">Copy</button>
+        <button id="closeBtn" style="padding:8px 12px;border-radius:8px;border:1px solid #d1d5db;background:#f3f4f6;cursor:pointer">Close</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (q, el=document) => el.querySelector(q);
+  const tbody = $("#tbl tbody");
+  const storageKey = "gold.records.auto.white.v6";
+  const PREF_KEY = "gold.export.pref";
+  const nf2 = new Intl.NumberFormat(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+  const nf0 = new Intl.NumberFormat(undefined,{maximumFractionDigits:0});
+
+  function trunc2(x){ return Math.trunc(x*100)/100; }
+  function trunc0(x){ return Math.trunc(x); }
+
+  // Timestamp
+  function pad2(n){return n<10?'0'+n:''+n;}
+  function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
+  function stampString(d){const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];const months=['January','February','March','April','May','June','July','August','September','October','November','December'];const h=d.getHours(),m=pad2(d.getMinutes());const ampm=h===0?'12':(h>12?(h-12):h);const suffix=h>=12?'pm':'am';return `${days[d.getDay()]} , ${ordinal(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()} @ ${ampm}:${m}${suffix}.`;}
+  function updateClock(){ $("#timestamp").textContent = stampString(new Date()); }
+
+  function rowTemplate(i, r={note:'', top:'0', down:'0', price:'0'}){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="idx">${i+1}</td>
+      <td style="text-align:left"><input data-k="note" value="${r.note??''}"></td>
+      <td><input type="number" step="0.01" data-k="top" value="${r.top??'0'}"></td>
+      <td><input type="number" step="0.01" data-k="down" value="${r.down??'0'}"></td>
+      <td><input type="number" step="0.01" data-k="price" value="${r.price??'0'}"></td>
+      <td><input type="text" data-k="pounds" value="0.00" readonly></td>
+      <td><input type="text" data-k="density" value="0.00" readonly></td>
+      <td><input type="text" data-k="karat" value="0.00" readonly></td>
+      <td><input type="text" data-k="amount" value="0" readonly></td>
+      <td><button class="btn" data-action="del">Delete</button></td>`;
+
+    ['top','down','price'].forEach(k => {
+      const el = tr.querySelector(`input[data-k="${k}"]`);
+      el.addEventListener('focus', ()=>{ if(el.value==='0') el.value=''; });
+      el.addEventListener('blur', ()=>{ if(el.value==='') el.value='0'; recalcRow(tr); save(); });
+      el.addEventListener('input', ()=>{ recalcRow(tr); save(); });
+    });
+
+    tr.querySelector('[data-action="del"]').addEventListener('click', ()=>{ tr.remove(); renumber(); recalcAll(); save(); });
+    recalcRow(tr);
+    return tr;
+  }
+
+  function addRow(r={}){ const tr = rowTemplate(tbody.rows.length, r); tbody.appendChild(tr); return tr; }
+  function renumber(){ [...tbody.rows].forEach((tr, idx) => tr.querySelector('.idx').textContent = idx+1); }
+
+  function recalcRow(tr){
+    const top = parseFloat(tr.querySelector('input[data-k="top"]').value);
+    const down = parseFloat(tr.querySelector('input[data-k="down"]').value);
+    const price = parseFloat(tr.querySelector('input[data-k="price"]').value);
+
+    const poundsEl = tr.querySelector('input[data-k="pounds"]');
+    const densityEl = tr.querySelector('input[data-k="density"]');
+    const karatEl = tr.querySelector('input[data-k="karat"]');
+    const amountEl = tr.querySelector('input[data-k="amount"]');
+
+    let pounds=0,density=0,karat=0,amount=0;
+    const haveTopDown = isFinite(top)&&isFinite(down)&&down!==0&&top!==0;
+    if(haveTopDown){
+      pounds=trunc2(top/7.75);
+      density=trunc2(top/down);
+      karat=trunc2(((density-10.51)*52.838)/density);
+      poundsEl.value=nf2.format(pounds);
+      densityEl.value=nf2.format(density);
+      karatEl.value=nf2.format(karat);
+
+      if(isFinite(price)&&price!==0){
+        amount=trunc0((karat/23)*price*pounds);
+        amountEl.value=nf0.format(amount);
+      } else amountEl.value='0';
+    } else {
+      poundsEl.value='0.00'; densityEl.value='0.00'; karatEl.value='0.00'; amountEl.value='0';
+    }
+    recalcAll();
+  }
+
+  function recalcAll(){
+    let sumAmt=0, sumTop=0;
+    [...tbody.rows].forEach(tr=>{
+      const amt=parseFloat((tr.querySelector('input[data-k="amount"]').value||'0').toString().replace(/,/g,''));
+      const top=parseFloat(tr.querySelector('input[data-k="top"]').value||'0');
+      if(isFinite(amt)) sumAmt+=amt;
+      if(isFinite(top)) sumTop+=top;
+    });
+    $("#grandTotal").textContent=nf0.format(sumAmt);
+    $("#totalTop").textContent=nf2.format(sumTop);
+  }
+
+  function save(){
+    const rows=[...tbody.rows].map(tr=>{
+      const get=k=>tr.querySelector(`input[data-k="${k}"]`).value;
+      return {note:get('note'), top:get('top'), down:get('down'), price:get('price')};
+    });
+    localStorage.setItem(storageKey, JSON.stringify(rows));
+  }
+
+  function load(){
+    const raw=localStorage.getItem(storageKey);
+    const rows=raw?JSON.parse(raw):[];
+    if(rows.length===0){ addRow({}); addRow({}); } else { rows.forEach(r=>addRow(r)); }
+    renumber(); recalcAll();
+    const pref=localStorage.getItem(PREF_KEY);
+    if(pref){ document.getElementById('delim').value=pref; }
+  }
+
+  // Export/Import
+  function buildDelimited(delim){
+    const isCSV = (delim === ',' || delim === ';');
+    const header=['Notes','Top','Down','Price','Pounds','Density','Karat','Amount'];
+    const out=[header];
+    [...tbody.rows].forEach(tr=>{
+      const q=s=>tr.querySelector(`input[data-k="${s}"]`).value||'';
+      const note = isCSV ? '"' + q('note').replace(/"/g,'""') + '"' : q('note');
+      const top = q('top'); const down=q('down'); const price=q('price');
+      const pounds=q('pounds').replace(/,/g,''); const density=q('density').replace(/,/g,'');
+      const karat=q('karat').replace(/,/g,''); const amount=q('amount').replace(/,/g,'');
+      out.push([note,top,down,price,pounds,density,karat,amount]);
+    });
+    const lines = out.map(row => row.join(delim)).join('\\r\\n');
+    const bom = '\\ufeff';
+    return bom + lines;
+  }
+
+  function exportDelimited(delim){
+    const txt = buildDelimited(delim);
+    const a=document.createElement('a');
+    const ext = (delim === '\\t') ? 'tsv' : 'csv';
+    const blob=new Blob([txt],{type:'text/plain;charset=utf-8'});
+    a.href=URL.createObjectURL(blob);
+    a.download=`gold_records_calculated.${ext}`;
+    a.click(); URL.revokeObjectURL(a.href);
+    localStorage.setItem(PREF_KEY, delim);
+  }
+
+  function quickExport(){
+    const pref = localStorage.getItem(PREF_KEY) || '\\t';
+    exportDelimited(pref);
+  }
+
+  function importFile(file){
+    const reader=new FileReader();
+    reader.onload=()=>{
+      const text=reader.result;
+      let delim=',';
+      if(text.indexOf('\\t')!==-1) delim='\\t';
+      else if(text.indexOf(';')!==-1 && text.split(';').length>text.split(',').length) delim=';';
+      const lines=text.split(/\\r?\\n/).filter(Boolean);
+      if(lines.length===0) return;
+      const start = lines[0].toLowerCase().startsWith('notes'+(delim==='\\t'?'\\t':delim)) ? 1 : 0;
+      tbody.innerHTML='';
+      for(let i=start;i<lines.length;i++){
+        let parts;
+        if(delim==='\\t'){ parts=lines[i].split('\\t'); }
+        else {
+          const row=[]; let s=lines[i]; let inQ=false; let cur='';
+          for(let j=0;j<s.length;j++){
+            const ch=s[j];
+            if(ch==='"'){ if(inQ && s[j+1]==='"'){ cur+='"'; j++; } else { inQ=!inQ; } }
+            else if(ch===delim && !inQ){ row.push(cur); cur=''; }
+            else { cur+=ch; }
+          }
+          row.push(cur); parts=row;
+        }
+        const note=(parts[0]||'').replace(/^"|"$/g,'').replace(/""/g,'"');
+        const top=parts[1]||''; const down=parts[2]||''; const price=parts[3]||'';
+        addRow({note,top,down,price});
+      }
+      renumber(); recalcAll(); save();
+    };
+    reader.readAsText(file);
+  }
+
+  // Share / Copy link with robust fallbacks
+  function buildLink(){
+    const rows=[...tbody.rows].map(tr=>{
+      const note=tr.querySelector('input[data-k="note"]').value||'';
+      const top=tr.querySelector('input[data-k="top"]').value||'';
+      const down=tr.querySelector('input[data-k="down"]').value||'';
+      const price=tr.querySelector('input[data-k="price"]').value||'';
+      return {n:note,t:top,d:down,p:price};
+    });
+    const payload = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(rows)))));
+    const url = location.origin + location.pathname + '?rows=' + payload;
+    return url;
+  }
+
+  document.getElementById('shareBtn').addEventListener('click', async ()=>{
+    const url = buildLink();
+    if(navigator.share){
+      try{ await navigator.share({title:'Gold Amount Calculator (Horizontal)', url}); return; }catch(e){}
+    }
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      try{ await navigator.clipboard.writeText(url); alert('Link copied.'); return; }catch(e){}
+    }
+    const modal = document.getElementById('modal');
+    const box = document.getElementById('linkBox');
+    box.value = url; modal.style.display='flex'; box.focus(); box.select();
+  });
+  document.getElementById('copyBtn').addEventListener('click', ()=>{
+    const box=document.getElementById('linkBox'); box.select();
+    try{ document.execCommand('copy'); alert('Link copied.'); }catch(e){}
+  });
+  document.getElementById('closeBtn').addEventListener('click', ()=>{ document.getElementById('modal').style.display='none'; });
+
+  // Copy Text for ALL rows (with timestamp)
+  document.getElementById('copyText').addEventListener('click', async ()=>{
+    const now = stampString(new Date());
+    const lines = [`Gold Amount Calculator`, now, ``];
+    [...tbody.rows].forEach((tr, idx) => {
+      const get=k=>tr.querySelector(`input[data-k="${k}"]`).value||'';
+      const pounds=tr.querySelector('input[data-k="pounds"]').value||'';
+      const density=tr.querySelector('input[data-k="density"]').value||'';
+      const karat=tr.querySelector('input[data-k="karat"]').value||'';
+      const amount=tr.querySelector('input[data-k="amount"]').value||'';
+      lines.push(
+`Row ${idx+1}:
+Notes: ${get('note')}
+Top: ${get('top')} g
+Down: ${get('down')} g
+Price: ${get('price')} GHS/Lb
+Pounds: ${pounds}
+Density: ${density}
+Karat: ${karat}
+Amount: ${amount} GHS
+`
+      );
+    });
+    lines.push(`TOTAL TOP (g): ${document.getElementById('totalTop').textContent}`);
+    lines.push(`TOTAL AMOUNT: ${document.getElementById('grandTotal').textContent} GHS`);
+    const text = lines.join('\n');
+
+    try{
+      await navigator.clipboard.writeText(text);
+      alert('Text copied.');
+    }catch(e){
+      const tmp=document.createElement('textarea');
+      tmp.value=text; document.body.appendChild(tmp); tmp.select();
+      try{ document.execCommand('copy'); alert('Text copied.'); }catch(e2){ alert('Copy failed.'); }
+      document.body.removeChild(tmp);
+    }
+  });
+
+  // Print / PDF
+  document.getElementById('printPdf').addEventListener('click', ()=> window.print());
+
+  // Wire controls
+  document.getElementById('addRow').addEventListener('click',()=>{ addRow({}); renumber(); recalcAll(); save(); });
+  document.getElementById('dupLast').addEventListener('click',()=>{
+    const rows=[...tbody.rows];
+    if(rows.length===0){ addRow({}); return; }
+    const last=rows[rows.length-1];
+    addRow({
+      note:last.querySelector('input[data-k="note"]').value,
+      top:last.querySelector('input[data-k="top"]').value,
+      down:last.querySelector('input[data-k="down"]').value,
+      price:last.querySelector('input[data-k="price"]').value
+    }); renumber(); recalcAll(); save();
+  });
+  document.getElementById('clearAll').addEventListener('click',()=>{ if(confirm('Clear all rows?')){ tbody.innerHTML=''; addRow({}); addRow({}); renumber(); recalcAll(); save(); } });
+  document.getElementById('exportBtn').addEventListener('click',()=>{
+    const delim=document.getElementById('delim').value;
+    exportDelimited(delim);
+  });
+  document.getElementById('quickBtn').addEventListener('click',()=>{
+    const pref = localStorage.getItem(PREF_KEY) || '\\t';
+    exportDelimited(pref);
+  });
+  document.getElementById('importCsv').addEventListener('change', e=>{ if(e.target.files[0]) importFile(e.target.files[0]); });
+
+  // Load, clock, and optional rows payload
+  function load(){
+    const raw=localStorage.getItem(storageKey);
+    const rows=raw?JSON.parse(raw):[];
+    if(rows.length===0){ addRow({}); addRow({}); } else { rows.forEach(r=>addRow(r)); }
+    renumber(); recalcAll();
+  }
+  load();
+  updateClock(); setInterval(updateClock, 1000);
+
+  (function(){
+    const q = new URLSearchParams(location.search);
+    const payload = q.get('rows');
+    if(payload){
+      try{
+        const json = JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(payload)))));
+        tbody.innerHTML='';
+        json.forEach(r=> addRow({note:r.n, top:r.t, down:r.d, price:r.p}));
+        renumber(); recalcAll(); save();
+      }catch(e){}
+    }
+  })();
+</script>
+</body>
+</html>
