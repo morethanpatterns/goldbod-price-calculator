@@ -21,6 +21,8 @@
   .row{display:grid;grid-template-columns:1fr;gap:10px}
   .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .btn{appearance:none;border:1px solid #d1d5db;background:linear-gradient(135deg,#facc15,#f59e0b);color:#000;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+  #printNotice{font-size:12px;color:#b91c1c;margin-top:4px;display:none}
+  #actionMessage{font-size:12px;color:#047857;margin-top:6px;display:none}
 </style>
 </head>
 <body>
@@ -56,6 +58,8 @@
         <button class="btn" id="copyText">Copy Text</button>
         <button class="btn" id="printPdf">Print / PDF</button>
       </div>
+      <p id="printNotice">Printing is blocked in this embed. Open this calculator in a new tab to print.</p>
+      <p id="actionMessage" role="status" aria-live="polite"></p>
     </div>
   </div>
 
@@ -74,13 +78,33 @@
 <script>
   const $ = id => document.getElementById(id);
   const ADJ=0.95865, GRAMS_PER_OZ=31.1035, GRAMS_PER_GHP=7.75;
-  function round2(x){return Math.round(x*100)/100;} function round0(x){return Math.round(x);}
+  function round2(x){return Math.round(x*100)/100;} function round0(x){return Math.round(x);} function round4(x){return Math.round(x*10000)/10000;}
 
   function pad2(n){return n<10?'0'+n:''+n;} function ordinal(n){const s=['th','st','nd','rd'],v=n%100;return n+(s[(v-20)%10]||s[v]||s[0]);}
   function stampString(d){const days=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];const months=['January','February','March','April','May','June','July','August','September','October','November','December'];const h=d.getHours(),m=pad2(d.getMinutes());const ampm=h===0?'12':(h>12?(h-12):h);const suffix=h>=12?'pm':'am';return `${days[d.getDay()]}, ${ordinal(d.getDate())} ${months[d.getMonth()]} ${d.getFullYear()} @ ${ampm}:${m}${suffix}.`;}
   function updateClock(){ $('timestamp').textContent = stampString(new Date()); }
 
   function fmtMoney(x){return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');}
+  let messageTimer;
+  function showMessage(text,type='success'){
+    const el=$('actionMessage');
+    if(!el)return;
+    const colors={success:'#047857',info:'#1d4ed8',error:'#b91c1c'};
+    el.textContent=text;
+    el.style.color=colors[type]||colors.success;
+    el.style.display='block';
+    clearTimeout(messageTimer);
+    messageTimer=setTimeout(()=>{el.style.display='none';},4000);
+  }
+  function hideMessage(){
+    const el=$('actionMessage');
+    if(!el)return;
+    el.style.display='none';
+    clearTimeout(messageTimer);
+    messageTimer=undefined;
+  }
+
+
 
   function calc(){
     const lme=parseFloat($('lme').value), rate=parseFloat($('rate').value), bonus=parseFloat($('bonus').value);
@@ -96,12 +120,43 @@
   function buildLink(){const p=new URLSearchParams({lme:$('lme').value,rate:$('rate').value});return location.origin+location.pathname+'?'+p.toString();}
   $('share').addEventListener('click',async()=>{
     const url=buildLink();
-    if(navigator.share){try{await navigator.share({title:'Gold Price Calculator',url});return;}catch(e){}}
-    if(navigator.clipboard&&navigator.clipboard.writeText){try{await navigator.clipboard.writeText(url);alert('Link copied.');return;}catch(e){}}
-    const modal=$('modal');const box=$('linkBox');box.value=url;modal.style.display='flex';box.focus();box.select();
+    try{
+      if(navigator.share){
+        await navigator.share({title:'Gold Price Calculator',url});
+        showMessage('Share dialog opened.','info');
+        return;
+      }
+    }catch(e){}
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      try{
+        await navigator.clipboard.writeText(url);
+        showMessage('Link copied to clipboard.');
+        return;
+      }catch(err){}
+    }
+    const modal=$('modal');
+    const box=$('linkBox');
+    box.value=url;
+    modal.style.display='flex';
+    box.focus();
+    box.select();
+    showMessage('Copy the link below.','info');
   });
-  $('copyBtn').addEventListener('click',()=>{const box=$('linkBox');box.select();try{document.execCommand('copy');alert('Link copied.');}catch(e){}});
-  $('closeBtn').addEventListener('click',()=>{$('modal').style.display='none';});
+  $('copyBtn').addEventListener('click',()=>{
+    const box=$('linkBox');
+    box.select();
+    try{
+      const ok=document.execCommand('copy');
+      if(ok){
+        showMessage('Link copied to clipboard.');
+      }else{
+        throw new Error('Copy command rejected');
+      }
+    }catch(e){
+      showMessage('Copy failed. Use Ctrl+C or Cmd+C.','error');
+    }
+  });
+  $('closeBtn').addEventListener('click',()=>{$('modal').style.display='none';hideMessage();});
 
   $('copyText').addEventListener('click',async()=>{
     const now=stampString(new Date()); const lme=parseFloat($('lme').value)||0; const rate=parseFloat($('rate').value)||0; const price=$('poundPrice').value||'0'; const bonus=$('bonus').value||'0'; const total=$('finalTotal').value||'0';
@@ -116,12 +171,160 @@ Price per pound- GHS${price}
 
 Special Bonus  per pound- GHS${bonus}
 
-*Total price per pound- GHS${total}`;
-    try{await navigator.clipboard.writeText(text);alert('Text copied.');}
-    catch(e){const tmp=document.createElement('textarea');tmp.value=text;document.body.appendChild(tmp);tmp.select();try{document.execCommand('copy');alert('Text copied.');}catch(e2){alert('Copy failed.');}document.body.removeChild(tmp);}
+*Total price per pound- GHS${total}*`;
+    try{
+      await navigator.clipboard.writeText(text);
+      showMessage('Details copied to clipboard.');
+    }catch(e){
+      const tmp=document.createElement('textarea');
+      tmp.value=text;
+      tmp.setAttribute('readonly',');
+      tmp.style.position='absolute';
+      tmp.style.left='-9999px';
+      document.body.appendChild(tmp);
+      tmp.select();
+      try{
+        const ok=document.execCommand('copy');
+        if(ok){
+          showMessage('Details copied to clipboard.');
+        }else{
+          throw new Error('Copy command rejected');
+        }
+      }catch(e2){
+        showMessage('Copy failed. Select and copy the text manually.','error');
+      }
+      document.body.removeChild(tmp);
+    }
   });
 
-  $('printPdf').addEventListener('click',()=>window.print());
+  function isEmbedded(){try{return window.self!==window.top;}catch(e){return true;}}
+  function buildPrintHtml(details){
+    const {stamp,lme,rate,price,bonus,total}=details;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Gold Price Calculator</title>
+<style>
+  body{margin:32px;background:#fff;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;color:#111827;}
+  h1{margin:0 0 8px;color:#C59B0B;font-size:28px;font-weight:800;}
+  .stamp{margin:0 0 24px;color:#4b5563;font-size:13px;}
+  table{border-collapse:collapse;width:100%;font-size:14px;}
+  th,td{padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:left;}
+  th{width:60%;font-weight:600;}
+  .total td{font-weight:700;font-size:18px;color:#7c2d12;}
+  @media print{body{margin:0;padding:32px;}}
+</style>
+</head>
+<body>
+  <h1>Gold Price Calculator</h1>
+  <p class="stamp">${stamp}</p>
+  <table>
+    <tr><th>LME Price per Ounce</th><td>${lme}</td></tr>
+    <tr><th>Exchange Rate (GHS/USD)</th><td>${rate}</td></tr>
+    <tr><th>Price per pound</th><td>${price}</td></tr>
+    <tr><th>Bonus</th><td>${bonus}</td></tr>
+    <tr class="total"><th>Total per pound</th><td>${total}</td></tr>
+  </table>
+</body>
+</html>`;
+  }
+  function triggerPrint(){
+    const notice=$('printNotice');
+    const failureMessage='Printing is blocked in this embed. Open this calculator in a new tab to print.';
+    hideMessage();
+    if(notice){
+      notice.style.display='none';
+      notice.textContent=failureMessage;
+    }
+
+    if(!isEmbedded()){
+      window.print();
+      return;
+    }
+
+    const sanitize=value=>(value||'0').toString().replace(/,/g,'');
+    const lmeVal=parseFloat(sanitize($('lme').value))||0;
+    const rateVal=parseFloat(sanitize($('rate').value))||0;
+    const priceVal=$('poundPrice').value||'0';
+    const bonusVal=parseFloat(sanitize($('bonus').value))||0;
+    const totalVal=$('finalTotal').value||'0';
+    const data={
+      stamp:$('timestamp').textContent,
+      lme:`${fmtMoney(round2(lmeVal))}`,
+      rate:isFinite(rateVal)?round4(rateVal).toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:4}):'0.0000',
+      price:`GHS${priceVal}`,
+      bonus:`GHS${fmtMoney(bonusVal)}`,
+      total:`GHS${totalVal}`
+    };
+    const printHtml=buildPrintHtml(data);
+    const frame=document.createElement('iframe');
+    frame.setAttribute('aria-hidden','true');
+    frame.style.position='fixed';
+    frame.style.width='0';
+    frame.style.height='0';
+    frame.style.border='0';
+    frame.style.opacity='0';
+    frame.style.pointerEvents='none';
+    document.body.appendChild(frame);
+
+    let printed=false;
+    const cleanup=()=>{
+      if(frame.parentNode){frame.parentNode.removeChild(frame);}
+    };
+    const handleFailure=(msg)=>{
+      if(printed)return;
+      cleanup();
+      if(notice){notice.style.display='block';}
+      showMessage(msg||failureMessage,'error');
+    };
+    const markPrinted=()=>{
+      if(printed)return;
+      printed=true;
+      showMessage('Print dialog opened.','info');
+    };
+    const attachPrintListeners=win=>{
+      if(!win)return;
+      try{
+        win.addEventListener('beforeprint',markPrinted,{once:true});
+        win.addEventListener('afterprint',cleanup,{once:true});
+        if(win.matchMedia){
+          const mq=win.matchMedia('print');
+          if(mq&&mq.addEventListener){
+            const mediaHandler=e=>{if(e.matches){markPrinted();}};
+            mq.addEventListener('change',mediaHandler,{once:true});
+          }
+        }
+      }catch(_){
+        /* ignore */
+      }
+    };
+    const pipeHtml=()=>{
+      try{
+        const win=frame.contentWindow||frame;
+        attachPrintListeners(win);
+        win.focus();
+        win.print();
+        setTimeout(()=>{if(!printed){handleFailure('Print dialog blocked. Use Ctrl+P.');}},1200);
+      }catch(err){
+        handleFailure('Print dialog blocked. Use Ctrl+P.');
+      }
+    };
+
+    frame.addEventListener('load',pipeHtml,{once:true});
+    if('srcdoc' in frame){
+      frame.srcdoc=printHtml;
+    }else{
+      const doc=frame.contentWindow?frame.contentWindow.document:frame.contentDocument;
+      doc.open();
+      doc.write(printHtml);
+      doc.close();
+    }
+
+    setTimeout(()=>{if(!printed){handleFailure();}},2500);
+  }
+
+  $('printPdf').addEventListener('click',triggerPrint);
 
   updateClock(); setInterval(updateClock,1000);
   (function(){const q=new URLSearchParams(location.search); if(q.has('lme'))$('lme').value=q.get('lme'); if(q.has('rate'))$('rate').value=q.get('rate');})();
