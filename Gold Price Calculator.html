@@ -3,7 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Gold Price Calculator — No Screenshot</title>
+<script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<title>Gold Price Calculator &mdash; No Screenshot</title>
 <style>
   :root{ --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --muted:#4b5563; --fg:#111827; --gold:#C59B0B; }
   *{box-sizing:border-box}
@@ -28,7 +29,7 @@
 <body>
   <div class="wrap">
     <h1>Gold Price Calculator</h1>
-    <div class="stamp">📅 <span id="timestamp">—</span></div>
+    <div class="stamp">&#x1F4C5; <span id="timestamp">&mdash;</span></div>
     <div id="priceCard" class="card">
       <div class="row">
         <div>
@@ -56,9 +57,9 @@
         <button class="btn" id="reset">Reset</button>
         <button class="btn" id="share">Share / Copy Link</button>
         <button class="btn" id="copyText">Copy Text</button>
-        <button class="btn" id="printPdf">Print / PDF</button>
+        <button class="btn" id="printPdf">Download Screenshot</button>
       </div>
-      <p id="printNotice">Printing is blocked in this embed. Open this calculator in a new tab to print.</p>
+      <p id="printNotice">Screenshot failed. Try again or capture it manually.</p>
       <p id="actionMessage" role="status" aria-live="polite"></p>
     </div>
   </div>
@@ -178,7 +179,7 @@ Special Bonus  per pound- GHS${bonus}
     }catch(e){
       const tmp=document.createElement('textarea');
       tmp.value=text;
-      tmp.setAttribute('readonly',');
+      tmp.setAttribute('readonly','');
       tmp.style.position='absolute';
       tmp.style.left='-9999px';
       document.body.appendChild(tmp);
@@ -197,134 +198,55 @@ Special Bonus  per pound- GHS${bonus}
     }
   });
 
-  function isEmbedded(){try{return window.self!==window.top;}catch(e){return true;}}
-  function buildPrintHtml(details){
-    const {stamp,lme,rate,price,bonus,total}=details;
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<title>Gold Price Calculator</title>
-<style>
-  body{margin:32px;background:#fff;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;color:#111827;}
-  h1{margin:0 0 8px;color:#C59B0B;font-size:28px;font-weight:800;}
-  .stamp{margin:0 0 24px;color:#4b5563;font-size:13px;}
-  table{border-collapse:collapse;width:100%;font-size:14px;}
-  th,td{padding:10px 12px;border-bottom:1px solid #e5e7eb;text-align:left;}
-  th{width:60%;font-weight:600;}
-  .total td{font-weight:700;font-size:18px;color:#7c2d12;}
-  @media print{body{margin:0;padding:32px;}}
-</style>
-</head>
-<body>
-  <h1>Gold Price Calculator</h1>
-  <p class="stamp">${stamp}</p>
-  <table>
-    <tr><th>LME Price per Ounce</th><td>${lme}</td></tr>
-    <tr><th>Exchange Rate (GHS/USD)</th><td>${rate}</td></tr>
-    <tr><th>Price per pound</th><td>${price}</td></tr>
-    <tr><th>Bonus</th><td>${bonus}</td></tr>
-    <tr class="total"><th>Total per pound</th><td>${total}</td></tr>
-  </table>
-</body>
-</html>`;
-  }
-  function triggerPrint(){
+  async function triggerPrint(){
     const notice=$('printNotice');
-    const failureMessage='Printing is blocked in this embed. Open this calculator in a new tab to print.';
     hideMessage();
     if(notice){
       notice.style.display='none';
-      notice.textContent=failureMessage;
+      notice.textContent='';
     }
 
-    if(!isEmbedded()){
-      window.print();
+    const target=document.querySelector('.wrap');
+    if(!target){
+      showMessage('Calculator not found.','error');
       return;
     }
 
-    const sanitize=value=>(value||'0').toString().replace(/,/g,'');
-    const lmeVal=parseFloat(sanitize($('lme').value))||0;
-    const rateVal=parseFloat(sanitize($('rate').value))||0;
-    const priceVal=$('poundPrice').value||'0';
-    const bonusVal=parseFloat(sanitize($('bonus').value))||0;
-    const totalVal=$('finalTotal').value||'0';
-    const data={
-      stamp:$('timestamp').textContent,
-      lme:`${fmtMoney(round2(lmeVal))}`,
-      rate:isFinite(rateVal)?round4(rateVal).toLocaleString(undefined,{minimumFractionDigits:4,maximumFractionDigits:4}):'0.0000',
-      price:`GHS${priceVal}`,
-      bonus:`GHS${fmtMoney(bonusVal)}`,
-      total:`GHS${totalVal}`
-    };
-    const printHtml=buildPrintHtml(data);
-    const frame=document.createElement('iframe');
-    frame.setAttribute('aria-hidden','true');
-    frame.style.position='fixed';
-    frame.style.width='0';
-    frame.style.height='0';
-    frame.style.border='0';
-    frame.style.opacity='0';
-    frame.style.pointerEvents='none';
-    document.body.appendChild(frame);
-
-    let printed=false;
-    const cleanup=()=>{
-      if(frame.parentNode){frame.parentNode.removeChild(frame);}
-    };
-    const handleFailure=(msg)=>{
-      if(printed)return;
-      cleanup();
-      if(notice){notice.style.display='block';}
-      showMessage(msg||failureMessage,'error');
-    };
-    const markPrinted=()=>{
-      if(printed)return;
-      printed=true;
-      showMessage('Print dialog opened.','info');
-    };
-    const attachPrintListeners=win=>{
-      if(!win)return;
-      try{
-        win.addEventListener('beforeprint',markPrinted,{once:true});
-        win.addEventListener('afterprint',cleanup,{once:true});
-        if(win.matchMedia){
-          const mq=win.matchMedia('print');
-          if(mq&&mq.addEventListener){
-            const mediaHandler=e=>{if(e.matches){markPrinted();}};
-            mq.addEventListener('change',mediaHandler,{once:true});
-          }
-        }
-      }catch(_){
-        /* ignore */
+    if(typeof html2canvas!=='function'){
+      if(notice){
+        notice.textContent='Screenshot tool failed to load. Reload the page and try again.';
+        notice.style.display='block';
       }
-    };
-    const pipeHtml=()=>{
-      try{
-        const win=frame.contentWindow||frame;
-        attachPrintListeners(win);
-        win.focus();
-        win.print();
-        setTimeout(()=>{if(!printed){handleFailure('Print dialog blocked. Use Ctrl+P.');}},1200);
-      }catch(err){
-        handleFailure('Print dialog blocked. Use Ctrl+P.');
-      }
-    };
-
-    frame.addEventListener('load',pipeHtml,{once:true});
-    if('srcdoc' in frame){
-      frame.srcdoc=printHtml;
-    }else{
-      const doc=frame.contentWindow?frame.contentWindow.document:frame.contentDocument;
-      doc.open();
-      doc.write(printHtml);
-      doc.close();
+      showMessage('Screenshot unavailable.','error');
+      return;
     }
 
-    setTimeout(()=>{if(!printed){handleFailure();}},2500);
+    try{
+      const canvas=await html2canvas(target,{
+        backgroundColor:'#ffffff',
+        scale:Math.min(window.devicePixelRatio||1,3),
+        useCORS:true
+      });
+      const dataUrl=canvas.toDataURL('image/png');
+      const tmpLink=document.createElement('a');
+      const timestamp=new Date().toISOString().replace(/[:.]/g,'-');
+      tmpLink.href=dataUrl;
+      tmpLink.download=`gold-price-calculator-${timestamp}.png`;
+      document.body.appendChild(tmpLink);
+      tmpLink.click();
+      document.body.removeChild(tmpLink);
+      showMessage('Screenshot downloaded.','success');
+    }catch(err){
+      console.error(err);
+      if(notice){
+        notice.textContent='Screenshot failed. Try again or capture it manually.';
+        notice.style.display='block';
+      }
+      showMessage('Screenshot failed.','error');
+    }
   }
 
-  $('printPdf').addEventListener('click',triggerPrint);
+  $('printPdf').addEventListener('click',triggerPrint); 
 
   updateClock(); setInterval(updateClock,1000);
   (function(){const q=new URLSearchParams(location.search); if(q.has('lme'))$('lme').value=q.get('lme'); if(q.has('rate'))$('rate').value=q.get('rate');})();
@@ -332,3 +254,14 @@ Special Bonus  per pound- GHS${bonus}
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
