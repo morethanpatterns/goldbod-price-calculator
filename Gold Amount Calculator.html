@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
-<title>Gold Amount Calculator — Vertical (Accounting Clean)</title>
+<title>Gold Amount Calculator â€” Vertical (Accounting Clean)</title>
 <style>
   :root{ --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --muted:#4b5563; --fg:#111827; --gold:#C59B0B; }
   *{box-sizing:border-box}
@@ -21,8 +21,12 @@
   .out .label{color:#374151;font-size:12px}
   .out .value{font-weight:800;font-variant-numeric:tabular-nums;letter-spacing:.2px}
   .big{font-size:22px;color:#065f46}
-  .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;align-items:center;margin-top:12px}
   .btn{appearance:none;border:1px solid #d1d5db;background:linear-gradient(135deg,#facc15,#f59e0b);color:#000;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+  @media (max-width:600px){
+    .btns{flex-direction:column;align-items:stretch;justify-content:center;gap:10px;}
+    .btn{width:100%;text-align:center;}
+  }
 </style>
 </head>
 <body>
@@ -226,6 +230,9 @@ Amount (GHS): ${amount}`;
 </script>
 </body>
 </html>
+
+
+
 
 
 
