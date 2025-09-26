@@ -8,8 +8,8 @@
 <style>
   :root{ --bg:#ffffff; --card:#ffffff; --line:#e5e7eb; --muted:#4b5563; --fg:#111827; --gold:#C59B0B; }
   *{box-sizing:border-box}
-  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#111827}
-  .wrap{max-width:620px;margin:0 auto;padding:18px}
+  body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Inter,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:#111827;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:24px 0}
+  .wrap{max-width:620px;width:100%;margin:0 auto;padding:18px;box-sizing:border-box}
   h1{margin:0 0 6px;font-size:clamp(20px,4vw,32px);text-align:center;color:var(--gold);font-weight:800;letter-spacing:1px}
   .stamp{font-size:13px;color:#374151;text-align:center;margin:0 0 14px}
   .card{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px;box-shadow:0 6px 18px rgba(0,0,0,.06)}
@@ -23,7 +23,27 @@
   .big{font-size:22px;color:#065f46}
   .btns{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .btn{appearance:none;border:1px solid #d1d5db;background:linear-gradient(135deg,#facc15,#f59e0b);color:#000;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
-</style>
+  @media (max-width:600px){
+    .wrap{padding:12px;}
+    .card{padding:14px;}
+    h1{font-size:clamp(18px,6vw,26px);}
+    .stamp{font-size:12px;margin-bottom:12px;}
+    label{margin-top:10px;font-size:11px;}
+    input{padding:10px;font-size:15px;}
+    .out{margin-top:10px;padding:10px;}
+    .out .label{font-size:11px;}
+    .out .value{font-size:15px;}
+    .big{font-size:20px;}
+    .btns{flex-direction:column;gap:10px;}
+    .btn{width:100%;padding:11px 14px;}
+    #actionMessage{font-size:12px;margin-top:10px;}
+  }
+
+  @media (max-height:700px){
+    .wrap{padding:12px;}
+    .card{padding:12px;}
+    .btns{margin-top:10px;}
+  }</style>
 </head>
 <body>
   <div class="wrap">
@@ -128,6 +148,7 @@
       $('density').textContent='0.00';
       $('karat').textContent='0.00';
       $('amount').textContent=fmtAccounting(0);
+      fitToViewport();
       return;
     }
 
@@ -140,6 +161,30 @@
     $('density').textContent = nf2(density);
     $('karat').textContent = nf2(karat);
     $('amount').textContent = fmtAccounting(amount);
+    fitToViewport();
+  }
+
+  function fitToViewport(){
+    const wrap=document.querySelector('.wrap');
+    if(!wrap)return;
+
+    wrap.style.transform='';
+    wrap.style.transformOrigin='top center';
+
+    const verticalPadding=48; // approximate body padding
+    const availableHeight=Math.max(window.innerHeight-verticalPadding,300);
+    const rect=wrap.getBoundingClientRect();
+    const scale=Math.min(1, availableHeight/rect.height);
+
+    if(scale<0.99){
+      wrap.style.transformOrigin='top center';
+      wrap.style.transform=`scale(${scale})`;
+      wrap.dataset.scale=scale.toFixed(3);
+    }else{
+      wrap.style.transform='';
+      wrap.style.transformOrigin='';
+      wrap.removeAttribute('data-scale');
+    }
   }
 
   ['top','down','price'].forEach(id => {
@@ -161,7 +206,7 @@
     showMessage('Copy the link below.','info');
   });
   $('copyBtn').addEventListener('click', ()=>{ const box=$('linkBox'); box.select(); try{ document.execCommand('copy'); showMessage('Link copied to clipboard.'); }catch(e){ showMessage('Copy failed. Use Ctrl+C or Cmd+C.','error'); } });
-  $('closeBtn').addEventListener('click', ()=>{ $('modal').style.display='none'; });
+  $('closeBtn').addEventListener('click', ()=>{ $('modal').style.display='none'; hideMessage(); });
 
   $('copyText').addEventListener('click', async ()=>{
     hideMessage();
@@ -197,6 +242,11 @@ Amount (GHS): ${amount}`;
       return;
     }
 
+    const prevTransform=target.style.transform;
+    const prevOrigin=target.style.transformOrigin;
+    target.style.transform='';
+    target.style.transformOrigin='top center';
+
     try{
       const canvas=await html2canvas(target,{
         backgroundColor:'#ffffff',
@@ -212,13 +262,23 @@ Amount (GHS): ${amount}`;
       link.click();
       document.body.removeChild(link);
       showMessage('Screenshot downloaded.','success');
+      target.style.transform = prevTransform;
+      target.style.transformOrigin = prevOrigin;
+      fitToViewport();
     }catch(err){
       console.error(err);
       showMessage('Screenshot failed. Try again or capture it manually.','error');
+      target.style.transform = prevTransform;
+      target.style.transformOrigin = prevOrigin;
+      fitToViewport();
     }
   }
 
   $('printPdf').addEventListener('click',triggerScreenshot);
+
+  window.addEventListener('resize', fitToViewport);
+  window.addEventListener('orientationchange', fitToViewport);
+  fitToViewport();
 
   updateClock(); setInterval(updateClock, 1000);
   (function(){ const q=new URLSearchParams(location.search); if(q.has('top')) $('top').value=q.get('top'); if(q.has('down')) $('down').value=q.get('down'); if(q.has('price')) $('price').value=q.get('price'); })();
@@ -226,6 +286,18 @@ Amount (GHS): ${amount}`;
 </script>
 </body>
 </html>
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
